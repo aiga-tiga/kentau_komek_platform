@@ -40,11 +40,7 @@ export default function EmployeeLogin() {
         <button className="btn btn-primary" type="submit">
           {t("loginButton")}
         </button>
-        <p className="login-hint">
-          demo: operator / operator123 (панель)
-          <br />
-          demo: analyst / analyst123 (аналитика)
-        </p>
+       
       </form>
     </div>
   );

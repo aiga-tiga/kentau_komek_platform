@@ -41,12 +41,15 @@ export default function ComplaintDetail() {
 
   async function handleComplete(e) {
     e.preventDefault();
-    if (!photoFile) return;
     setUploadError("");
     setUploading(true);
     try {
-      const { url } = await api.uploadPhoto(photoFile);
-      await api.completeComplaint(id, { completion_comment: comment, completion_photo: url });
+      let completion_photo;
+      if (photoFile) {
+        const { url } = await api.uploadPhoto(photoFile);
+        completion_photo = url;
+      }
+      await api.completeComplaint(id, { completion_comment: comment, completion_photo });
       setShowCloseForm(false);
       refresh();
     } catch (err) {
@@ -143,12 +146,12 @@ export default function ComplaintDetail() {
                 <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} />
               </label>
               <label>
-                {t("completionPhotoUrl")}
+                {t("completionPhotoUrl")} <span className="optional-hint">({t("optionalHint")})</span>
                 <input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] || null)} />
               </label>
               {uploadError && <div className="form-error">{uploadError}</div>}
               <div className="detail-actions">
-                <button className="btn btn-primary" type="submit" disabled={!photoFile || uploading}>
+                <button className="btn btn-primary" type="submit" disabled={uploading}>
                   {uploading ? "…" : t("confirmClose")}
                 </button>
                 <button className="btn btn-secondary" type="button" onClick={() => setShowCloseForm(false)}>

@@ -5,6 +5,16 @@ const { STATUSES, CATEGORIES } = require("../constants");
 
 const router = express.Router();
 
+// Trend chart granularity: short ranges are grouped by day so the line has
+// enough points to be readable; longer ranges are grouped by week/month so
+// it doesn't render hundreds of points.
+const TREND_PERIODS = {
+  week: { interval: "7 days", trunc: "day" },
+  month: { interval: "30 days", trunc: "day" },
+  halfyear: { interval: "182 days", trunc: "week" },
+  year: { interval: "365 days", trunc: "month" },
+};
+
 // All KPIs support an optional ?categories=id1,id2 filter so the dashboard's
 // category filter can narrow down everything at once (KPI cards, map, heatmap, trend).
 router.get("/", requireAuth, async (req, res, next) => {
@@ -43,12 +53,15 @@ router.get("/", requireAuth, async (req, res, next) => {
       params
     );
 
-    // Daily complaint volume for the last 14 days, for the trend chart.
+    // Daily/weekly/monthly complaint volume for the trend chart, range and
+    // grouping depend on the requested period (defaults to "month").
+    const period = TREND_PERIODS[req.query.period] ? req.query.period : "month";
+    const { interval, trunc } = TREND_PERIODS[period];
     const trendWhere = list.length
-      ? "WHERE category = ANY($1) AND created_at > now() - interval '14 days'"
-      : "WHERE created_at > now() - interval '14 days'";
+      ? `WHERE category = ANY($1) AND created_at > now() - interval '${interval}'`
+      : `WHERE created_at > now() - interval '${interval}'`;
     const trend = await pool.query(
-      `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS n
+      `SELECT to_char(date_trunc('${trunc}', created_at), 'YYYY-MM-DD') AS day, COUNT(*)::int AS n
        FROM complaints ${trendWhere}
        GROUP BY 1 ORDER BY 1`,
       params
@@ -69,6 +82,7 @@ router.get("/", requireAuth, async (req, res, next) => {
       overdue: overdue.rows[0].n,
       avgResolutionHours: avgResolution.rows[0].hours ? Number(avgResolution.rows[0].hours) : null,
       trend: trend.rows,
+      trendPeriod: period,
       mapPoints: mapPoints.rows,
     });
   } catch (err) {

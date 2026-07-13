@@ -42,9 +42,10 @@ export const api = {
       body: JSON.stringify(payload),
     }).then(handle),
 
-  analytics: (categories) => {
+  analytics: (categories, period) => {
     const params = new URLSearchParams();
     if (categories?.length) params.set("categories", categories.join(","));
+    if (period) params.set("period", period);
     return fetch(`${BASE}/analytics?${params}`, { headers: authHeaders() }).then(handle);
   },
 

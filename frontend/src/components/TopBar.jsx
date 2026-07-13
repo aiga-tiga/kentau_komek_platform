@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useLang } from "../i18n/i18n.jsx";
 import { useAuth } from "../auth.jsx";
+import logoImg from "../assets/logo.png";
 
 export default function TopBar() {
   const { lang, setLang, t } = useLang();
@@ -9,7 +10,7 @@ export default function TopBar() {
   return (
     <header className="topbar">
       <Link to="/" className="topbar-brand">
-        <span className="topbar-logo">🌿</span>
+        <img src={logoImg} alt="" className="topbar-logo" />
       </Link>
 
       <div className="topbar-lang">

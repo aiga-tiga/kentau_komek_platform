@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useLang } from "../i18n/i18n.jsx";
 import { api } from "../api.js";
 import { categoryColor } from "../categoryColors.js";
@@ -10,6 +11,7 @@ import HeatmapLayer from "../components/HeatmapLayer.jsx";
 // worked on in yellow, resolved ones in green.
 const STATUS_COLORS = { new: "#2563eb", in_progress: "#eab308", done: "#16a34a" };
 const ALL_STATUSES = ["new", "in_progress", "done"];
+const TREND_PERIODS = ["week", "month", "halfyear", "year"];
 
 const EMPTY_STATS = {
   total: 0,
@@ -26,6 +28,7 @@ export default function Analytics() {
   const [meta, setMeta] = useState({ categories: [], statusLabels: {} });
   const [included, setIncluded] = useState(null); // null = "all categories", set once meta loads
   const [includedStatuses, setIncludedStatuses] = useState(ALL_STATUSES);
+  const [trendPeriod, setTrendPeriod] = useState("month");
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("points");
   const [loading, setLoading] = useState(true);
@@ -50,13 +53,13 @@ export default function Analytics() {
     }
     const filter = allSelected ? undefined : included;
     api
-      .analytics(filter)
+      .analytics(filter, trendPeriod)
       .then(setData)
       .finally(() => setLoading(false));
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(load, [included]);
+  useEffect(load, [included, trendPeriod]);
 
   function toggleCategory(id) {
     setIncluded((prev) => {
@@ -87,6 +90,14 @@ export default function Analytics() {
     if (data?.mapPoints?.length) return [data.mapPoints[0].lat, data.mapPoints[0].lng];
     return [43.222, 76.8512]; // fallback: Almaty
   }, [data]);
+
+  function formatTrendLabel(day) {
+    const d = new Date(day);
+    if (trendPeriod === "year") {
+      return d.toLocaleDateString(lang === "kk" ? "kk-KZ" : "ru-RU", { month: "short", year: "2-digit" });
+    }
+    return d.toLocaleDateString(lang === "kk" ? "kk-KZ" : "ru-RU", { day: "2-digit", month: "2-digit" });
+  }
 
   if (!data) return <div className="panel-page">…</div>;
 
@@ -262,6 +273,35 @@ export default function Analytics() {
               })}
           </div>
         </div>
+      </div>
+
+      <div className="trend-card">
+        <div className="trend-header">
+          <h2 className="sidebar-title">{t("trendTitle")}</h2>
+          <div className="filter-chips">
+            {TREND_PERIODS.map((p) => (
+              <button
+                key={p}
+                className={trendPeriod === p ? "chip chip-active" : "chip"}
+                onClick={() => setTrendPeriod(p)}
+              >
+                {t(`period${p === "halfyear" ? "HalfYear" : p[0].toUpperCase() + p.slice(1)}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={260}>
+          <LineChart data={data.trend} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef0ee" />
+            <XAxis dataKey="day" tickFormatter={formatTrendLabel} tick={{ fontSize: 12, fill: "#6b7570" }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#6b7570" }} />
+            <Tooltip
+              labelFormatter={formatTrendLabel}
+              formatter={(value) => [value, t("trendCountLabel")]}
+            />
+            <Line type="monotone" dataKey="n" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

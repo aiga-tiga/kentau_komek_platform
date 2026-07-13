@@ -155,15 +155,12 @@ router.patch("/:id/complete", requireAuth, requireRole("employee"), async (req, 
     if (!existing.rows[0]) return res.status(404).json({ error: "Not found" });
 
     const { completion_comment, completion_photo } = req.body || {};
-    if (!completion_photo) {
-      return res.status(400).json({ error: "completion_photo is required to close a complaint" });
-    }
 
     const { rows } = await pool.query(
       `UPDATE complaints
        SET status = 'done', completion_comment = $1, completion_photo = $2, completed_at = now()
        WHERE id = $3 RETURNING *`,
-      [completion_comment || null, completion_photo, req.params.id]
+      [completion_comment || null, completion_photo || null, req.params.id]
     );
     res.json(rows[0]);
   } catch (err) {
