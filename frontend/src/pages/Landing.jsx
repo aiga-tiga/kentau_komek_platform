@@ -23,6 +23,7 @@ export default function Landing() {
         >
           ✈️ {t("submitViaTelegram")}
         </a>
+        
         <Link className="btn btn-outline" to="/analytics">
           📊 {t("analyticsPanel")}
         </Link>

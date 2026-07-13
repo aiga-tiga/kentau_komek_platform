@@ -5,6 +5,7 @@ import EmployeeLogin from "./pages/EmployeeLogin.jsx";
 import EmployeePanel from "./pages/EmployeePanel.jsx";
 import ComplaintDetail from "./pages/ComplaintDetail.jsx";
 import Analytics from "./pages/Analytics.jsx";
+import StatusCheck from "./pages/StatusCheck.jsx";
 import { useAuth } from "./auth.jsx";
 
 function RequireAuth({ children }) {
@@ -29,6 +30,7 @@ export default function App() {
       <div className="app-content">
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/status" element={<StatusCheck />} />
           <Route path="/login" element={<EmployeeLogin />} />
           <Route
             path="/panel"

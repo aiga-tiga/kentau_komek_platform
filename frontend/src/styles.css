@@ -173,6 +173,7 @@ a { color: inherit; text-decoration: none; }
 .close-form { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; background: #fafbfa; padding: 16px; border-radius: 8px; }
 .close-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-muted); }
 .close-form input, .close-form textarea { border: 1px solid var(--gray-border); border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+.optional-hint { color: var(--text-muted); font-weight: 400; font-size: 12px; }
 
 /* Lightbox (click a photo to view it full size) */
 .lightbox-overlay {
@@ -239,6 +240,11 @@ a { color: inherit; text-decoration: none; }
 }
 .trend-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
 .trend-header .sidebar-title { margin: 0; }
+
+.status-check-page { max-width: 640px; margin: 0 auto; padding: 20px; }
+.status-check-page h1 { color: var(--brand); margin-bottom: 4px; }
+.status-check-form { width: 100%; margin: 24px 0; }
+.status-check-result { margin-top: 8px; }
 
 .analytics-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: start; }
 .analytics-map-col { border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 16px; box-shadow: var(--card-shadow); }

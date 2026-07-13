@@ -5,7 +5,7 @@
 // way any other client would.
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
 const TelegramBot = require("node-telegram-bot-api");
-const { CATEGORIES } = require("../constants");
+const { CATEGORIES, STATUS_LABELS } = require("../constants");
 const { STRINGS } = require("./strings");
 const { geocodeAddress } = require("../geocode");
 
@@ -26,6 +26,18 @@ const sessions = new Map();
 // asked as a wizard step - one less question for the person filing a
 // complaint, and it means geocoding/exports always have a region to work with.
 const DEFAULT_REGION = "Кентау";
+
+// Accepts the common ways people type a KZ mobile number - with/without +7,
+// with 8 instead of +7, with spaces/dashes/parens - and normalizes them all
+// to the same "+7XXXXXXXXXX" form stored in the DB. Returns null if the text
+// genuinely isn't a valid KZ number, so the bot can ask again instead of
+// silently saving garbage.
+function normalizePhone(raw) {
+  const digitsAndPlus = raw.replace(/[^\d+]/g, "");
+  const match = digitsAndPlus.match(/^(?:\+7|8|7)(\d{10})$/);
+  if (!match) return null;
+  return `+7${match[1]}`;
+}
 
 function resetSession(chatId) {
   sessions.set(chatId, { step: "language", data: { region: DEFAULT_REGION }, lang: "ru" });
@@ -82,15 +94,51 @@ function skipKeyboard(session) {
 function restartKeyboard(session) {
   return {
     reply_markup: {
-      inline_keyboard: [[{ text: s(session).newComplaintBtn, callback_data: "restart" }]],
+      inline_keyboard: [
+        [{ text: s(session).newComplaintBtn, callback_data: "restart" }],
+        [{ text: s(session).myComplaintsBtn, callback_data: "mycomplaints" }],
+      ],
     },
   };
+}
+
+function formatComplaintLine(c, lang) {
+  const category = CATEGORIES.find((cat) => cat.id === c.category);
+  const categoryLabel =
+    c.category === "other" ? `${category?.[lang] || "Другое"}: ${c.category_other || ""}` : category?.[lang] || c.category;
+  const statusLabel = STATUS_LABELS[c.status]?.[lang] || c.status;
+  const date = new Date(c.created_at).toLocaleDateString(lang === "kk" ? "kk-KZ" : "ru-RU");
+  return `${c.code} — ${categoryLabel}\n${date} · ${c.address}\n${statusLabel}`;
+}
+
+async function showMyComplaints(chatId, lang) {
+  const str = STRINGS[lang] || STRINGS.ru;
+  try {
+    const resp = await fetch(`${API_BASE_URL}/complaints/by-chat/${chatId}`, {
+      headers: process.env.BOT_SHARED_SECRET ? { "x-bot-secret": process.env.BOT_SHARED_SECRET } : {},
+    });
+    const list = await resp.json();
+    if (!resp.ok || !Array.isArray(list) || list.length === 0) {
+      return bot.sendMessage(chatId, str.noComplaints);
+    }
+    const body = list.map((c) => formatComplaintLine(c, lang)).join("\n\n");
+    bot.sendMessage(chatId, `${str.myComplaintsTitle}\n\n${body}`);
+  } catch (err) {
+    console.error("Fetching complaints failed:", err);
+    bot.sendMessage(chatId, str.error);
+  }
 }
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   resetSession(chatId);
   bot.sendMessage(chatId, STRINGS.ru.chooseLanguage, languageKeyboard());
+});
+
+bot.onText(/\/my/, (msg) => {
+  const chatId = msg.chat.id;
+  const lang = sessions.get(chatId)?.lang || "ru";
+  showMyComplaints(chatId, lang);
 });
 
 bot.on("callback_query", async (query) => {
@@ -100,6 +148,12 @@ bot.on("callback_query", async (query) => {
   if (query.data === "restart") {
     resetSession(chatId);
     bot.sendMessage(chatId, STRINGS.ru.chooseLanguage, languageKeyboard());
+    return;
+  }
+
+  if (query.data === "mycomplaints") {
+    const lang = sessions.get(chatId)?.lang || "ru";
+    showMyComplaints(chatId, lang);
     return;
   }
 
@@ -212,7 +266,9 @@ bot.on("message", async (msg) => {
 
     case "phone": {
       if (!msg.text) return bot.sendMessage(chatId, str.needTextPhone);
-      session.data.applicant_phone = msg.text;
+      const normalized = normalizePhone(msg.text);
+      if (!normalized) return bot.sendMessage(chatId, str.invalidPhone);
+      session.data.applicant_phone = normalized;
       session.data.telegram_chat_id = String(chatId);
       session.data.telegram_lang = session.lang;
       session.step = "done";
@@ -237,7 +293,7 @@ bot.on("message", async (msg) => {
         const complaint = await resp.json();
 
         if (resp.ok) {
-          bot.sendMessage(chatId, str.success(complaint.code), restartKeyboard(session));
+          bot.sendMessage(chatId, str.success(complaint.code, complaint.access_code), restartKeyboard(session));
         } else {
           bot.sendMessage(chatId, str.failure, restartKeyboard(session));
         }

@@ -16,6 +16,11 @@ async function handle(resp) {
 export const api = {
   meta: () => fetch(`${BASE}/meta`).then(handle),
 
+  lookupComplaint: (code, accessCode) => {
+    const params = new URLSearchParams({ code, access_code: accessCode });
+    return fetch(`${BASE}/complaints/lookup?${params}`).then(handle);
+  },
+
   login: (username, password) =>
     fetch(`${BASE}/auth/login`, {
       method: "POST",

@@ -1,7 +1,8 @@
 const express = require("express");
-const { pool, generateCode } = require("../db");
+const { pool, generateCode, generateAccessCode } = require("../db");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { DEFAULT_DEADLINE_DAYS, CATEGORIES, STATUS_LABELS } = require("../constants");
+const { notifyStatusChange } = require("../notify");
 
 // Excel export always uses Russian labels, regardless of the UI language the
 // person exporting happens to have selected - it's an internal/back-office
@@ -58,12 +59,13 @@ router.post("/", async (req, res, next) => {
       const check = await pool.query("SELECT 1 FROM complaints WHERE code = $1", [code]);
       exists = check.rows.length > 0;
     }
+    const access_code = generateAccessCode();
 
     const { rows } = await pool.query(
       `INSERT INTO complaints
        (code, status, category, category_other, description, region, address, lat, lng,
-        applicant_name, applicant_phone, source_photo, telegram_chat_id, telegram_lang)
-       VALUES ($1, 'new', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        applicant_name, applicant_phone, source_photo, telegram_chat_id, telegram_lang, access_code)
+       VALUES ($1, 'new', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         code,
@@ -79,6 +81,7 @@ router.post("/", async (req, res, next) => {
         source_photo || null,
         telegram_chat_id || null,
         telegram_lang || null,
+        access_code,
       ]
     );
 
@@ -117,6 +120,67 @@ router.get("/", requireAuth, requireRole("employee"), async (req, res, next) => 
   }
 });
 
+// Public status lookup for citizens - no login, just the complaint code +
+// the access code they got via Telegram when they filed it. Deliberately
+// returns only citizen-facing fields (no phone, no internal id, no access
+// code) even though both codes already proved it's theirs.
+router.get("/lookup", async (req, res, next) => {
+  try {
+    const { code, access_code } = req.query;
+    if (!code || !access_code) {
+      return res.status(400).json({ error: "code and access_code are required" });
+    }
+
+    const { rows } = await pool.query(
+      "SELECT * FROM complaints WHERE code = $1 AND access_code = $2",
+      [String(code).trim().toUpperCase(), String(access_code).trim()]
+    );
+    if (!rows[0]) {
+      return res.status(404).json({ error: "Жалоба не найдена. Проверьте номер и код доступа." });
+    }
+
+    const c = rows[0];
+    res.json({
+      code: c.code,
+      status: c.status,
+      category: c.category,
+      category_other: c.category_other,
+      description: c.description,
+      address: c.address,
+      created_at: c.created_at,
+      deadline: c.deadline,
+      completion_comment: c.completion_comment,
+      completion_photo: c.completion_photo,
+      completed_at: c.completed_at,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Lets the bot answer "/my" - list of a citizen's own complaints straight
+// from their Telegram chat, no codes to type. Only the bot itself calls this
+// (protected the same way complaint creation is, with a shared secret) -
+// a bare chat_id isn't proof of identity the way code+access_code is, so
+// this must stay a server-to-server call, never a public endpoint.
+router.get("/by-chat/:chatId", async (req, res, next) => {
+  try {
+    const botSecret = req.headers["x-bot-secret"];
+    if (process.env.BOT_SHARED_SECRET && botSecret !== process.env.BOT_SHARED_SECRET) {
+      return res.status(401).json({ error: "Invalid bot secret" });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT code, status, category, category_other, address, created_at, completion_comment
+       FROM complaints WHERE telegram_chat_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      [req.params.chatId]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Single complaint detail.
 router.get("/:id", requireAuth, requireRole("employee"), async (req, res, next) => {
   try {
@@ -142,6 +206,7 @@ router.patch("/:id/start", requireAuth, requireRole("employee"), async (req, res
        WHERE id = $2 RETURNING *`,
       [deadline, req.params.id]
     );
+    notifyStatusChange(rows[0]);
     res.json(rows[0]);
   } catch (err) {
     next(err);
@@ -162,6 +227,7 @@ router.patch("/:id/complete", requireAuth, requireRole("employee"), async (req, 
        WHERE id = $3 RETURNING *`,
       [completion_comment || null, completion_photo || null, req.params.id]
     );
+    notifyStatusChange(rows[0]);
     res.json(rows[0]);
   } catch (err) {
     next(err);

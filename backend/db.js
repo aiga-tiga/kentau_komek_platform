@@ -37,8 +37,12 @@ async function initSchema() {
       completion_comment TEXT,
       completion_photo TEXT,
       telegram_chat_id TEXT,
-      telegram_lang TEXT
+      telegram_lang TEXT,
+      access_code TEXT
     );
+
+    -- Migration for databases created before access_code existed.
+    ALTER TABLE complaints ADD COLUMN IF NOT EXISTS access_code TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
     CREATE INDEX IF NOT EXISTS idx_complaints_created_at ON complaints(created_at);
@@ -52,4 +56,11 @@ function generateCode() {
   return `${two}-${five}`;
 }
 
-module.exports = { pool, initSchema, generateCode };
+// Short numeric code sent by SMS/Telegram alongside the complaint code, so a
+// citizen can look up their complaint's status without any account/login -
+// knowing both codes together is treated as proof it's theirs.
+function generateAccessCode() {
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
+}
+
+module.exports = { pool, initSchema, generateCode, generateAccessCode };
