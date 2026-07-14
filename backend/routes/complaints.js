@@ -171,7 +171,7 @@ router.get("/by-chat/:chatId", async (req, res, next) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT code, status, category, category_other, address, created_at, completion_comment
+      `SELECT code, status, category, category_other, address, created_at, completion_comment, completion_photo
        FROM complaints WHERE telegram_chat_id = $1 ORDER BY created_at DESC LIMIT 20`,
       [req.params.chatId]
     );

@@ -55,6 +55,7 @@ function languageKeyboard() {
           { text: "🇷🇺 Русский", callback_data: "lang_ru" },
           { text: "🇰🇿 Қазақша", callback_data: "lang_kk" },
         ],
+        [{ text: "📋 Мои жалобы / Менің өтінімдерім", callback_data: "mycomplaints" }],
       ],
     },
   };
@@ -108,7 +109,12 @@ function formatComplaintLine(c, lang) {
     c.category === "other" ? `${category?.[lang] || "Другое"}: ${c.category_other || ""}` : category?.[lang] || c.category;
   const statusLabel = STATUS_LABELS[c.status]?.[lang] || c.status;
   const date = new Date(c.created_at).toLocaleDateString(lang === "kk" ? "kk-KZ" : "ru-RU");
-  return `${c.code} — ${categoryLabel}\n${date} · ${c.address}\n${statusLabel}`;
+  let line = `${c.code} — ${categoryLabel}\n${date} · ${c.address}\n${statusLabel}`;
+  if (c.completion_comment) {
+    const label = lang === "kk" ? "Орындаушының пікірі" : "Комментарий от исполнителя";
+    line += `\n${label}: ${c.completion_comment}`;
+  }
+  return line;
 }
 
 async function showMyComplaints(chatId, lang) {
@@ -122,7 +128,21 @@ async function showMyComplaints(chatId, lang) {
       return bot.sendMessage(chatId, str.noComplaints);
     }
     const body = list.map((c) => formatComplaintLine(c, lang)).join("\n\n");
-    bot.sendMessage(chatId, `${str.myComplaintsTitle}\n\n${body}`);
+    await bot.sendMessage(chatId, `${str.myComplaintsTitle}\n\n${body}`);
+
+    // Photos don't fit in a single text message, so send each one that
+    // exists as a quick follow-up, captioned with its complaint code.
+    const appUrl = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+    if (!appUrl || appUrl.includes("localhost")) return; // can't build a public photo URL yet
+
+    for (const c of list) {
+      if (!c.completion_photo) continue;
+      try {
+        await bot.sendPhoto(chatId, `${appUrl}${c.completion_photo}`, { caption: c.code });
+      } catch (err) {
+        console.error(`Failed to send photo for ${c.code}:`, err.message);
+      }
+    }
   } catch (err) {
     console.error("Fetching complaints failed:", err);
     bot.sendMessage(chatId, str.error);
