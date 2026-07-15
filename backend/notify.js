@@ -6,6 +6,10 @@
 // attached to the message too (matches the "Ваша заявка исполнена..." +
 // photo format used by similar city platforms).
 
+const fs = require("fs");
+const path = require("path");
+const { UPLOAD_DIR } = require("./storage");
+
 const MESSAGES = {
   in_progress: {
     ru: (code) => `Добрый день.\nВаша заявка ${code} принята в работу.\nМы сообщим, когда она будет выполнена.`,
@@ -48,20 +52,41 @@ async function sendTelegramMessage(chatId, text) {
   }
 }
 
+// Uploads the photo bytes straight to Telegram (multipart), instead of
+// giving Telegram a URL to fetch. sendPhoto-by-URL turned out to be
+// unreliable over plain HTTP (no SSL) - Telegram's fetcher would rather
+// treat the link as a webpage than as an image, failing with "wrong type of
+// the web page content" even though the URL works fine in a browser/curl.
+// Uploading the bytes directly sidesteps that entirely - this process
+// already has the file on disk (same UPLOAD_DIR volume as the API server),
+// so there's no network fetch on Telegram's end at all.
+//
 // Returns true on success, false on failure (caller falls back to text-only).
-async function sendTelegramPhoto(chatId, photoUrl, caption) {
+async function sendTelegramPhoto(chatId, relativePhotoUrl, caption) {
   if (!process.env.TELEGRAM_BOT_TOKEN) {
     console.warn("TELEGRAM_BOT_TOKEN not set in the backend's environment - notification not sent.");
     return false;
   }
+  const filename = path.basename(relativePhotoUrl);
+  const filePath = path.join(UPLOAD_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    console.error(`Photo notify: file not found on disk at ${filePath}`);
+    return false;
+  }
   try {
+    const buffer = fs.readFileSync(filePath);
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    form.append("caption", caption);
+    form.append("photo", new Blob([buffer]), filename);
+
     const resp = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendPhoto`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, photo: photoUrl, caption }),
+      body: form,
     });
-    if (!resp.ok) {
-      console.error("Telegram photo notify failed:", await resp.text());
+    const data = await resp.json();
+    if (!data.ok) {
+      console.error("Telegram photo notify failed:", JSON.stringify(data));
       return false;
     }
     return true;
@@ -80,23 +105,9 @@ function notifyStatusChange(complaint) {
   const text = buildText(complaint, lang);
   if (!text) return;
 
-  const appUrl = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
   const hasPhoto = complaint.status === "done" && complaint.completion_photo;
-  const canAttachPhoto = hasPhoto && appUrl && !appUrl.includes("localhost");
-
-  if (hasPhoto && !canAttachPhoto) {
-    console.warn(
-      `Skipping photo in Telegram notification for ${complaint.code}: ` +
-        `PUBLIC_BASE_URL is "${appUrl || "(not set)"}" - needs to be a real public URL, not empty/localhost.`
-    );
-  }
-
-  if (canAttachPhoto) {
-    const photoUrl = `${appUrl}${complaint.completion_photo}`;
-    // Telegram's servers fetch the photo themselves, so this URL has to be
-    // genuinely public - if it fails (e.g. PUBLIC_BASE_URL misconfigured),
-    // fall back to a text-only message instead of losing the notification.
-    sendTelegramPhoto(complaint.telegram_chat_id, photoUrl, text).then((ok) => {
+  if (hasPhoto) {
+    sendTelegramPhoto(complaint.telegram_chat_id, complaint.completion_photo, text).then((ok) => {
       if (!ok) sendTelegramMessage(complaint.telegram_chat_id, text);
     });
     return;

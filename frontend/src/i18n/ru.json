@@ -79,5 +79,18 @@
   "selectAll": "Выбрать все",
   "clearAll": "Сбросить",
   "refresh": "Обновить",
-  "loginHintAnalyst": "аналитика: analyst / analyst123"
+  "loginHintAnalyst": "аналитика: analyst / analyst123",
+  "landingEyebrow": "Городская служба",
+  "landingStage_new": "Новая",
+  "landingStage_progress": "В работе",
+  "landingStage_done": "Решено",
+  "landingCaption_new": "Новая заявка зарегистрирована",
+  "landingCaption_progress": "Сотрудник взял в работу",
+  "landingCaption_done": "Проблема решена",
+  "landingStep1Title": "Сообщите",
+  "landingStep1Body": "Отправьте фото и адрес через Telegram-бота.",
+  "landingStep2Title": "Назначается",
+  "landingStep2Body": "Профильная служба берёт заявку в работу со сроком.",
+  "landingStep3Title": "Решается",
+  "landingStep3Body": "Вы получите уведомление о результате по SMS и в боте."
 }

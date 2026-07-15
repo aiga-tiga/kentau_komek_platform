@@ -79,5 +79,18 @@
   "selectAll": "Барлығын таңдау",
   "clearAll": "Тазарту",
   "refresh": "Жаңарту",
-  "loginHintAnalyst": "аналитика: analyst / analyst123"
+  "loginHintAnalyst": "аналитика: analyst / analyst123",
+  "landingEyebrow": "Қалалық қызмет",
+  "landingStage_new": "Жаңа",
+  "landingStage_progress": "Жұмыста",
+  "landingStage_done": "Шешілді",
+  "landingCaption_new": "Жаңа өтінім тіркелді",
+  "landingCaption_progress": "Қызметкер жұмысқа алды",
+  "landingCaption_done": "Мәселе шешілді",
+  "landingStep1Title": "Хабарлаңыз",
+  "landingStep1Body": "Telegram-боттан фото мен мекенжайды жіберіңіз.",
+  "landingStep2Title": "Тағайындалады",
+  "landingStep2Body": "Тиісті қызмет мерзіммен жұмысқа алады.",
+  "landingStep3Title": "Шешіледі",
+  "landingStep3Body": "SMS пен ботта нәтиже туралы хабарлама аласыз."
 }
