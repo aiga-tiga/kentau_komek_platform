@@ -38,14 +38,17 @@ async function initSchema() {
       completion_photo TEXT,
       telegram_chat_id TEXT,
       telegram_lang TEXT,
-      access_code TEXT
+      access_code TEXT,
+      archived BOOLEAN NOT NULL DEFAULT false
     );
 
-    -- Migration for databases created before access_code existed.
+    -- Migrations for databases created before these columns existed.
     ALTER TABLE complaints ADD COLUMN IF NOT EXISTS access_code TEXT;
+    ALTER TABLE complaints ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false;
 
     CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
     CREATE INDEX IF NOT EXISTS idx_complaints_created_at ON complaints(created_at);
+    CREATE INDEX IF NOT EXISTS idx_complaints_archived ON complaints(archived);
   `);
 }
 

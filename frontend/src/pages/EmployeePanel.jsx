@@ -7,6 +7,7 @@ const TABS = [
   { key: "new", labelKey: "tabNew" },
   { key: "in_progress", labelKey: "tabInProgress" },
   { key: "done", labelKey: "tabDone" },
+  { key: "archived", labelKey: "tabArchived" },
 ];
 
 export default function EmployeePanel() {
@@ -18,20 +19,27 @@ export default function EmployeePanel() {
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState(null);
 
+  const isArchiveView = tab === "archived";
+
   useEffect(() => {
     api.meta().then(setMeta);
   }, []);
 
-  useEffect(() => {
+  function load() {
     setLoading(true);
+    const statusFilter = isArchiveView ? undefined : tab;
     api
-      .listComplaints(tab)
+      .listComplaints(statusFilter, undefined, isArchiveView)
       .then((data) => {
-        const sorted = sortByDate && tab === "done" ? [...data].sort((a, b) => (a.deadline || "").localeCompare(b.deadline || "")) : data;
+        const sorted =
+          sortByDate && tab === "done" ? [...data].sort((a, b) => (a.deadline || "").localeCompare(b.deadline || "")) : data;
         setRows(sorted);
       })
       .finally(() => setLoading(false));
-  }, [tab, sortByDate]);
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [tab, sortByDate]);
 
   function categoryLabel(row) {
     if (row.category === "other") return `${t("tabOther") || "Другое"}: ${row.category_other || ""}`;
@@ -49,11 +57,21 @@ export default function EmployeePanel() {
     return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
   }
 
+  async function toggleArchive(row) {
+    if (isArchiveView) {
+      await api.unarchiveComplaint(row.id);
+    } else {
+      if (!window.confirm(t("archiveConfirm"))) return;
+      await api.archiveComplaint(row.id);
+    }
+    load();
+  }
+
   return (
     <div className="panel-page">
       <div className="panel-header">
         <h1>{t("complaints")}</h1>
-        <button className="btn btn-secondary" onClick={() => api.exportExcel(tab)}>
+        <button className="btn btn-secondary" onClick={() => api.exportExcel(isArchiveView ? undefined : tab, undefined, isArchiveView)}>
           {t("exportExcel")}
         </button>
       </div>
@@ -88,12 +106,13 @@ export default function EmployeePanel() {
             <th>{t("colDescription")}</th>
             <th>{t("colApplicant")}</th>
             <th>{t("colPhoto")}</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {!loading && rows.length === 0 && (
             <tr>
-              <td colSpan={9} className="empty-cell">
+              <td colSpan={10} className="empty-cell">
                 {t("noData")}
               </td>
             </tr>
@@ -123,6 +142,11 @@ export default function EmployeePanel() {
                 ) : (
                   "—"
                 )}
+              </td>
+              <td>
+                <button className="link-btn small-link-btn" onClick={() => toggleArchive(r)}>
+                  {isArchiveView ? t("unarchiveBtn") : t("archiveBtn")}
+                </button>
               </td>
             </tr>
           ))}

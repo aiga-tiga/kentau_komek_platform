@@ -39,6 +39,16 @@ export default function ComplaintDetail() {
     refresh();
   }
 
+  async function handleArchiveToggle() {
+    if (complaint.archived) {
+      await api.unarchiveComplaint(id);
+    } else {
+      if (!window.confirm(t("archiveConfirm"))) return;
+      await api.archiveComplaint(id);
+    }
+    refresh();
+  }
+
   async function handleComplete(e) {
     e.preventDefault();
     setUploadError("");
@@ -89,6 +99,7 @@ export default function ComplaintDetail() {
         <div className="detail-info">
           <Row label={t("statusLabel")}>
             <span className={`status-pill status-${complaint.status}`}>{statusLabel}</span>
+            {complaint.archived && <span className="status-pill status-archived">{t("archivedBadge")}</span>}
           </Row>
           <Row label={t("regionLabel")}>{complaint.region || "—"}</Row>
           <Row label={t("deadlineLabel")}>
@@ -137,6 +148,9 @@ export default function ComplaintDetail() {
                 {t("closeComplaint")}
               </button>
             )}
+            <button className="btn btn-outline" onClick={handleArchiveToggle}>
+              {complaint.archived ? t("unarchiveBtn") : t("archiveBtn")}
+            </button>
           </div>
 
           {showCloseForm && (

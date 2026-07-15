@@ -92,13 +92,15 @@ router.post("/", async (req, res, next) => {
 });
 
 // List complaints, optionally filtered by status/category. Employee-only (the
-// analytics account doesn't need to browse individual complaints).
+// analytics account doesn't need to browse individual complaints). Archived
+// complaints (e.g. test entries) are hidden by default - pass ?archived=true
+// to view the archive instead.
 router.get("/", requireAuth, requireRole("employee"), async (req, res, next) => {
   try {
-    const { status, sort, categories } = req.query;
+    const { status, sort, categories, archived } = req.query;
     let sql = "SELECT * FROM complaints";
     const params = [];
-    const clauses = [];
+    const clauses = [archived === "true" ? "archived = true" : "archived = false"];
     if (status) {
       params.push(status);
       clauses.push(`status = $${params.length}`);
@@ -110,7 +112,7 @@ router.get("/", requireAuth, requireRole("employee"), async (req, res, next) => 
         clauses.push(`category = ANY($${params.length})`);
       }
     }
-    if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+    sql += " WHERE " + clauses.join(" AND ");
     sql += sort === "deadline" ? " ORDER BY deadline ASC NULLS LAST" : " ORDER BY created_at DESC";
 
     const { rows } = await pool.query(sql, params);
@@ -234,14 +236,42 @@ router.patch("/:id/complete", requireAuth, requireRole("employee"), async (req, 
   }
 });
 
+// Moves a complaint out of the dashboard/statistics without deleting it -
+// for test entries, duplicates, etc. that shouldn't count toward real KPIs.
+router.patch("/:id/archive", requireAuth, requireRole("employee"), async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      "UPDATE complaints SET archived = true WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/:id/unarchive", requireAuth, requireRole("employee"), async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      "UPDATE complaints SET archived = false WHERE id = $1 RETURNING *",
+      [req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Excel export for both the analytics dashboard and the employee desk.
 // Either account role can export (employee or analyst).
 router.get("/export/xlsx", requireAuth, async (req, res, next) => {
   try {
-    const { status, categories } = req.query;
+    const { status, categories, archived } = req.query;
     let sql = "SELECT * FROM complaints";
     const params = [];
-    const clauses = [];
+    const clauses = [archived === "true" ? "archived = true" : "archived = false"];
     if (status) {
       params.push(status);
       clauses.push(`status = $${params.length}`);
@@ -253,7 +283,7 @@ router.get("/export/xlsx", requireAuth, async (req, res, next) => {
         clauses.push(`category = ANY($${params.length})`);
       }
     }
-    if (clauses.length) sql += " WHERE " + clauses.join(" AND ");
+    sql += " WHERE " + clauses.join(" AND ");
     sql += " ORDER BY created_at DESC";
 
     const { rows } = await pool.query(sql, params);

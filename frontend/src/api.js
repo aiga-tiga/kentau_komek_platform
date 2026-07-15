@@ -28,10 +28,11 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }).then(handle),
 
-  listComplaints: (status, categories) => {
+  listComplaints: (status, categories, archived) => {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (categories?.length) params.set("categories", categories.join(","));
+    if (archived) params.set("archived", "true");
     return fetch(`${BASE}/complaints?${params}`, { headers: authHeaders() }).then(handle);
   },
 
@@ -46,6 +47,12 @@ export const api = {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     }).then(handle),
+
+  archiveComplaint: (id) =>
+    fetch(`${BASE}/complaints/${id}/archive`, { method: "PATCH", headers: authHeaders() }).then(handle),
+
+  unarchiveComplaint: (id) =>
+    fetch(`${BASE}/complaints/${id}/unarchive`, { method: "PATCH", headers: authHeaders() }).then(handle),
 
   analytics: (categories, period) => {
     const params = new URLSearchParams();
@@ -62,10 +69,11 @@ export const api = {
 
   // Excel export needs the auth header, so it can't just be a plain <a href>
   // link - fetch the file as a blob and trigger the download ourselves.
-  exportExcel: async (status, categories) => {
+  exportExcel: async (status, categories, archived) => {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (categories?.length) params.set("categories", categories.join(","));
+    if (archived) params.set("archived", "true");
     const resp = await fetch(`${BASE}/complaints/export/xlsx?${params}`, { headers: authHeaders() });
     if (!resp.ok) throw new Error("Export failed");
     const blob = await resp.blob();
